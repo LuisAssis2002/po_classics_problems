@@ -1,8 +1,9 @@
 /*---------------- File: main.cpp  ---------------------+
-|Modelo PLI - Mochila 01                                |
+|Modelo PLI - Problema da Designação (PD)               |
 |					      		                        |
 |					      		                        |
-| Implementado por Guilherme C. Pena em 28/08/2024      |
+| Implementado por: LUIS ARTHUR DE ASSIS MORAES  	    |
+| 					ALEX DE ANDRADE SOARES  	        |
 +-------------------------------------------------------+ */
 
 #include <bits/stdc++.h>
@@ -31,13 +32,13 @@ ILOSTLBEGIN //MACRO - "using namespace" for ILOCPEX
 
 
 struct aresta {
-	int w;
+	int w;	//custo da tarefa / pessoa
 };
 
 //Conjuntos do Problema
-int O; //Quantidade de Itens
-vector<vector<aresta>> arestas; //Conjunto dos itens
-int D; //Capacidade da Mochila
+int O; //Quantidade de pessoas
+vector<vector<aresta>> arestas; //Conjunto dos custos
+int D; //Quantidade de tarefas 
 
 void cplex(){
     //CPLEX
@@ -50,27 +51,6 @@ void cplex(){
 
 
 	//---------- MODELAGEM ---------------
-
-	//VARIAVEIS DE DECISAO (x_i) binaria
-	/*
-	IloNumVarArray x(env);
-	for( i = 0; i < N; i++ ){
-		x.add(IloIntVar(env, 0, 1));
-		numberVar++;
-	}
-	*/
-	//AJUDA
-	/*
-	//Definicao - Variaveis de Decisao 2 dimensoes (x_ij) binarias
-	IloArray<IloNumVarArray> x(env);
-	for( i = 0; i < N; i++ ){
-		x.add(IloNumVarArray>(env));
-		for( j = 0; j < N; j++ ){
-			x[i].add(IloIntVar(env, 0, 1));
-			numberVar++;
-		}
-	}
-	*/
 	//Definicao - Variaveis de Decisao 2 dimensoes (x_ij) não binárias (discretas)
 	IloArray<IloNumVarArray> x(env);
 	for( i = 0; i < O; i++ ){
@@ -85,8 +65,6 @@ void cplex(){
 	IloModel model ( env );
 	
 	//Definicao do ambiente expressoes, para os somatorios ---------------------------------
-	//Nota: Os somatorios podem ser reaproveitados usando o .clear(),
-	//com excecao de quando existe mais de um somatorio em uma mesma restricao.
 	IloExpr sum(env); /// Expression for Sum
 	IloExpr sum2(env); /// Expression for Sum2
 
@@ -97,15 +75,12 @@ void cplex(){
 			sum += (arestas[i][j].w * x[i][j]);
 		}
 	}
-	//model.add(IloMaximize(env, sum)); //Maximizacao
 
-	//AJUDA
-	//Modelo de Minimizacao
 	model.add(IloMinimize(env, sum)); //Minimizacao
 
 	//RESTRICOES ---------------------------------------------	
 	 
-	//R1 - Respeito da capacidade de Mochila
+	//Restrições das tarefas
 	for( i = 0; i < D; i++ ){
 		sum.clear();
 		for( j = 0; j < O; j++ ){
@@ -115,6 +90,7 @@ void cplex(){
 		numberRes++;
 	}		
 
+	//Restrições das pessoas
 	for( i = 0; i < O; i++ ){
 		sum.clear();
 		for( j = 0; j < D; j++ ){
@@ -123,43 +99,6 @@ void cplex(){
 		model.add(sum == 1); 
 		numberRes++;
 	}		
-
-
-	//AJUDA - Restricoes
-	/*//
-	Vou exemplificar uma situação em que a restrição contém somatórios independentes
-	e contém um (Para Todo na direita)
-	Nesse caso, o índice do (Para Todo) fica em um laço externo à restrição.
-	Gerando assim, várias restrições para tal.
-	
-	Exemplo: 
-	Restrição de Oferta (2) do PFCM:
-	S (maiusculo) é um conjunto de origens, cada uma com uma qntd. de oferta Q (maiusculo).
-	Supondo que temos os nós em S = {0 1 3} e 
-	Q[0] = 10, Q[1] = 10 e Q[3] = 20 (ofertas individuais)
-
-	//- A restrição é escrita assim para o ILOG CPLEX, basta fazer o teste de existência da aresta:
-	//- Ou seja, se existe a aresta, então a variável entra no respectivo somatório.
-
-	for(i=0; i<S.size(); i++){ // For que representa o (Para Todo).
-		sum.clear(); //Somatório 1
-		for( j = 0; j < N; j++ ){
-			if(existe aresta A[S[i]][j] ) //S[i] porque o índice real do vértice está dentro do conjunto S.
-				sum += x[ S[i] ][ j ];
-		}
-
-		sum2.clear(); //Somatório 2
-		for( k = 0; k < N; k++ ){
-			if(existe aresta A[k][S[i]] ) //S[i] porque o índice real do vértice está dentro do conjunto S.
-				sum2 += x[ k ][ S[i] ];
-		}
-		model.add(sum - sum2 <= Q[ S[i] ]); 
-		numberRes++;
-	}//Fim do for que representa o (Para Todo).
-
-	Note que por esse exemplo, 3 restrições são adicionadas ao modelo
-	por causa do tamanho do conjunto S, uma para cada vértice origem.
-	*/
 
 
 	//------ EXECUCAO do MODELO ----------
@@ -190,16 +129,7 @@ void cplex(){
 	//cout << "Solution Status: " << cplex.getStatus() << endl;
 	//Results
 	bool sol = true;
-	/*
-	Possible Status:
-	- Unknown	 
-	- Feasible	 
-	- Optimal	 
-	- Infeasible	 
-	- Unbounded	 
-	- InfeasibleOrUnbounded	 
-	- Error
-	*/
+
 	switch(cplex.getStatus()){
 		case IloAlgorithm::Optimal: 
 			status = "Optimal";
@@ -234,7 +164,7 @@ void cplex(){
 		for( i = 0; i < O; i++ ){
 			for( j = 0; j < D; j++ ){
 				value = IloRound(cplex.getValue(x[i][j]));
-				printf("x[%d %d]: %.0lf\n", i, j, value);
+				if(value != 0) printf("x[%d, %d]: %.0lf\n", i, j, value);
 			}
 		}
 		printf("\n");
